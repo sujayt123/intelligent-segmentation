@@ -2,8 +2,12 @@ import cv2
 import sys
 import math
 import numpy as np
+import dijkstra
 
 from filter_bank import filter_bank
+
+# Global variable to track the starting position of the path which the application should draw.
+start_point = None
 
 def compute_costs(grayscale):
     """
@@ -44,7 +48,37 @@ def main(image_filename):
     color_image = cv2.imread(image_filename)         
     grayscale = cv2.cvtColor(color_image, cv2.COLOR_RGB2GRAY)
     # Precompute the cost matrix (and by extension, the adjacency list) for the input image.
-    compute_costs(grayscale)
+    adj_list = compute_costs(grayscale)
+
+    # mouse callback function
+    def draw_path(event,x,y,flags,param):
+        global start_point
+        if event == cv2.EVENT_LBUTTONDBLCLK:
+            if start_point == None:
+                start_point = (x, y)
+            else:
+                end_point = (x, y)
+                # Draw pixels from start_point to end_point, in color red.
+                dist, parent = dijkstra.shortest_path(adj_list, start_point)
+                # Construct the path itself from the parent dictionary.
+                path = []
+                temp = end_point
+                while temp is not None:
+                    path.append(temp)
+                    temp = parent[temp]
+                # Paint all those pixels red.
+                for pixel in path:
+                    cv2.circle(img, pixel, 63, (255, 0, 0), -1)
+                # Get ready for next iteration by refreshing the start_point.
+                start_point = end_point
+
+    cv2.namedWindow('image')
+    cv2.setMouseCallback('image', draw_path)
+    while(1):
+        cv2.imshow('image', grayscale)
+        if cv2.waitKey(20) & 0xFF == 27:
+            break        
+    cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":

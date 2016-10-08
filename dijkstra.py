@@ -21,7 +21,9 @@ def shortest_path(adj_list, source):
 
 	while len(priority_queue) > 0:
 		curr = priority_queue.deleteMin()[1]
+		print curr
 		for nbr, wt in adj_list[curr]:
+			print nbr, wt, wt+dist[curr], dist[nbr]
 			if wt + dist[curr] < dist[nbr]:
 				dist[nbr] = wt + dist[curr]
 				p[nbr] = curr
@@ -33,10 +35,10 @@ def main():
 	"""
 	Executes the application.
 	"""
-	adj_list = {1: [(2, 15), (3, 1)],
+	adj_list = {1: [(2, 15), (3, 71)],
 				2: [(3, 7), (4, 1)],
 				3: [(4, 19)],
-				4: []}
+				4: [(3, 1)]}
 	print shortest_path(adj_list, 1)
 	
 

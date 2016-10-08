@@ -6,8 +6,11 @@ import dijkstra
 
 from filter_bank import filter_bank
 
-# Global variable to track the starting position of the path which the application should draw.
-start_point = None
+def within_bounds(x, delta_x, y, delta_y, max_x, max_y):
+    """
+    Returns whether the pixel given by (x + delta_x, y + delta_y) is in the bounds of the image.
+    """
+    return (x + delta_x) >= 0 and (x + delta_x) < max_x and (y + delta_y) >= 0 and (y + delta_y) < max_y
 
 def compute_costs(grayscale):
     """
@@ -26,13 +29,13 @@ def compute_costs(grayscale):
     adj_list = {}        
 
     # Specify a pixel in the image. Recall that the "x" direction is vertical and "y" direction is horizontal, by convention.
-    for x in xrange(1, len(grayscale) - 1):
-        for y in xrange(1, len(grayscale[0]) - 1):
+    for x in xrange(len(grayscale)):
+        for y in xrange(len(grayscale[0])):
             adj_list[(x, y)] = []
-            # Specify the direction to one of its neighbors.
+            # Specify the direction to one of its valid neighbors.
             for delta_x in range(-1, 2):
                 for delta_y in range(-1, 2):
-                    if delta_x != 0 and delta_y != 0:
+                    if (delta_x != 0 or delta_y != 0) and within_bounds(x, delta_x, y, delta_y, len(grayscale), len(grayscale[0])):
                         # Cost[neigbhor] = (max - filter_response) * distance_to_neighbor
                         cost = (max_filter_response - filtered_images[(delta_x, delta_y)][x][y]) * math.sqrt(delta_x ** 2 + delta_y ** 2)
                         adj_list[(x, y)].append(((x + delta_x, y + delta_y), cost))
@@ -43,23 +46,23 @@ def main(image_filename):
     Executes interactive segmentation on an input image using Dijkstra's algorithm.
 
     @param      image_filename      The path to the input image
-    """
+    """    
     # Read in the image and convert to grayscale for ease of computation.
     color_image = cv2.imread(image_filename)         
     grayscale = cv2.cvtColor(color_image, cv2.COLOR_RGB2GRAY)
     # Precompute the cost matrix (and by extension, the adjacency list) for the input image.
     adj_list = compute_costs(grayscale)
-
+    # Tracks the starting position of the path which the application should draw.
+    main.start_point = None
     # mouse callback function
     def draw_path(event,x,y,flags,param):
-        global start_point
         if event == cv2.EVENT_LBUTTONDBLCLK:
-            if start_point == None:
-                start_point = (x, y)
+            if main.start_point is None:
+                main.start_point = (x, y)
             else:
                 end_point = (x, y)
                 # Draw pixels from start_point to end_point, in color red.
-                dist, parent = dijkstra.shortest_path(adj_list, start_point)
+                dist, parent = dijkstra.shortest_path(adj_list, main.start_point)
                 # Construct the path itself from the parent dictionary.
                 path = []
                 temp = end_point
@@ -68,14 +71,14 @@ def main(image_filename):
                     temp = parent[temp]
                 # Paint all those pixels red.
                 for pixel in path:
-                    cv2.circle(img, pixel, 63, (255, 0, 0), -1)
+                    cv2.circle(color_image, pixel, 1, (0, 0, 255), -1)
                 # Get ready for next iteration by refreshing the start_point.
-                start_point = end_point
+                main.start_point = end_point
 
     cv2.namedWindow('image')
     cv2.setMouseCallback('image', draw_path)
     while(1):
-        cv2.imshow('image', grayscale)
+        cv2.imshow('image', color_image)
         if cv2.waitKey(20) & 0xFF == 27:
             break        
     cv2.destroyAllWindows()

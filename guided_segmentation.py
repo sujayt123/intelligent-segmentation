@@ -4,11 +4,11 @@ import math
 import numpy as np
 import dijkstra
 
-def within_bounds(x, delta_x, y, delta_y, max_x, max_y):
+def within_bounds(x, delta_x, y, delta_y, min_x, min_y, max_x, max_y):
     """
-    Returns whether the pixel given by (x + delta_x, y + delta_y) is in the bounds of the image.
+    Returns whether the pixel given by (x + delta_x, y + delta_y) is in the bounds of the box specified by (min_x, min_y) and (max_x, max_y).
     """
-    return (x + delta_x) >= 0 and (x + delta_x) < max_x and (y + delta_y) >= 0 and (y + delta_y) < max_y
+    return (x + delta_x) >= min_x and (x + delta_x) <= max_x and (y + delta_y) >= min_y and (y + delta_y) <= max_y
 
 def compute_costs(grayscale):
     """
@@ -34,31 +34,62 @@ def compute_costs(grayscale):
 
     max_filter_response = np.amax(gradient)    
 
-    # Initialize the adjacency list representation of the weighted pixel graph.
-    adj_list = {}        
+    return gradient, laplacian, max_filter_response
 
-    # Specify a pixel in the image. Recall that the "x" direction is vertical and "y" direction is horizontal, by convention.
-    for x in xrange(len(grayscale)):
-        for y in xrange(len(grayscale[0])):
+    # Initialize the adjacency list representation of the weighted pixel graph.
+    # adj_list = {}        
+
+    # # Specify a pixel in the image. Recall that the "x" direction is vertical and "y" direction is horizontal, by convention.
+    # for x in xrange(len(grayscale)):
+    #     for y in xrange(len(grayscale[0])):
+    #         adj_list[(x, y)] = []
+    #         # Specify the direction to one of its valid neighbors.
+    #         for delta_x in range(-1, 2):
+    #             for delta_y in range(-1, 2):
+    #                 if (delta_x != 0 or delta_y != 0) and within_bounds(x, delta_x, y, delta_y, len(grayscale), len(grayscale[0])):
+    #                     # Cost[neigbhor] = (max - filter_response) * distance_to_neighbor
+    #                     cost = (max_filter_response - gradient[x + delta_x][y + delta_y]) / max_filter_response * math.sqrt(delta_x ** 2 + delta_y ** 2)
+    #                     val = 1
+    #                     if laplacian[x + delta_x][y + delta_y] > 0:
+    #                         for i in range(-1, 2):
+    #                             for j in range(-1, 2):
+    #                                 if within_bounds(x + delta_x, i, y + delta_y, j, len(grayscale), len(grayscale[0])):
+    #                                     if laplacian[x + delta_x + i][y + delta_y + j] < 0:
+    #                                         val = min((val, abs(laplacian[x + delta_x + i][y + delta_y + j]), abs(laplacian[x + delta_x][y + delta_y])))
+
+    #                     if laplacian[x + delta_x][y + delta_y] < 0:
+    #                         for i in range(-1, 2):
+    #                             for j in range(-1, 2):
+    #                                 if within_bounds(x + delta_x, i, y + delta_y, j, len(grayscale), len(grayscale[0])):
+    #                                     if laplacian[x + delta_x + i][y + delta_y + j] > 0:
+    #                                         val = min((val, abs(laplacian[x + delta_x + i][y + delta_y + j]), abs(laplacian[x + delta_x][y + delta_y])))
+    #                     cost += val
+    #                     adj_list[(x, y)].append(((x + delta_x, y + delta_y), cost))
+    # return adj_list
+
+def partial_adj_list(min_bounds, max_bounds, gradient, laplacian, max_filter_response):
+    adj_list = {}
+    for x in xrange(min_bounds[0], max_bounds[0] + 1):
+        for y in xrange(min_bounds[1], max_bounds[1] + 1):
             adj_list[(x, y)] = []
             # Specify the direction to one of its valid neighbors.
             for delta_x in range(-1, 2):
                 for delta_y in range(-1, 2):
-                    if (delta_x != 0 or delta_y != 0) and within_bounds(x, delta_x, y, delta_y, len(grayscale), len(grayscale[0])):
+                    if (delta_x != 0 or delta_y != 0) and within_bounds(x, delta_x, y, delta_y, min_bounds[0], min_bounds[1], max_bounds[0], max_bounds[1]):
                         # Cost[neigbhor] = (max - filter_response) * distance_to_neighbor
                         cost = (max_filter_response - gradient[x + delta_x][y + delta_y]) / max_filter_response * math.sqrt(delta_x ** 2 + delta_y ** 2)
                         val = 1
                         if laplacian[x + delta_x][y + delta_y] > 0:
                             for i in range(-1, 2):
                                 for j in range(-1, 2):
-                                    if within_bounds(x + delta_x, i, y + delta_y, j, len(grayscale), len(grayscale[0])):
+                                    if within_bounds(x + delta_x, i, y + delta_y, j, min_bounds[0], min_bounds[1], max_bounds[0], max_bounds[1]):
                                         if laplacian[x + delta_x + i][y + delta_y + j] < 0:
                                             val = min((val, abs(laplacian[x + delta_x + i][y + delta_y + j]), abs(laplacian[x + delta_x][y + delta_y])))
 
                         if laplacian[x + delta_x][y + delta_y] < 0:
                             for i in range(-1, 2):
                                 for j in range(-1, 2):
-                                    if within_bounds(x + delta_x, i, y + delta_y, j, len(grayscale), len(grayscale[0])):
+                                    if within_bounds(x + delta_x, i, y + delta_y, j, min_bounds[0], min_bounds[1], max_bounds[0], max_bounds[1]):
                                         if laplacian[x + delta_x + i][y + delta_y + j] > 0:
                                             val = min((val, abs(laplacian[x + delta_x + i][y + delta_y + j]), abs(laplacian[x + delta_x][y + delta_y])))
                         cost += val
@@ -75,7 +106,7 @@ def main(image_filename, display_bounding_boxes=False):
     color_image = cv2.imread(image_filename)         
     grayscale = cv2.cvtColor(color_image, cv2.COLOR_RGB2GRAY)
     # Precompute the cost matrix (and by extension, the adjacency list) for the input image.
-    adj_list = compute_costs(grayscale)
+    gradient, laplacian, max_filter_response = compute_costs(grayscale)
     # Tracks the starting position of the path which the application should draw.
     main.start_point = None
     # mouse callback function
@@ -86,11 +117,13 @@ def main(image_filename, display_bounding_boxes=False):
                 main.start_point = (y, x)
             else:
                 end_point = (y, x)
+                min_bounds = (min(main.start_point[0], end_point[0]), min(main.start_point[1], end_point[1]))
+                max_bounds = (max(main.start_point[0], end_point[0]), max(main.start_point[1], end_point[1]))
                 if display_bounding_boxes is True:
-                    top_left = (min(main.start_point[1], end_point[1]), min(main.start_point[0], end_point[0]))
-                    bottom_right = (max(main.start_point[1], end_point[1]), max(main.start_point[0], end_point[0]))
-                    cv2.rectangle(color_image,top_left,bottom_right,(255,0,0),3)
-
+                    top_left = tuple(reversed(min_bounds))
+                    bottom_right = tuple(reversed(max_bounds))
+                    cv2.rectangle(color_image,top_left,bottom_right,(255,0,0),3)                
+                adj_list = partial_adj_list(min_bounds, max_bounds, gradient, laplacian, max_filter_response)
                 # Draw pixels from start_point to end_point, in color red.
                 dist, parent = dijkstra.shortest_path(adj_list, main.start_point, end_point)
                 # Construct the path itself from the parent dictionary.

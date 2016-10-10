@@ -20,10 +20,11 @@ def shortest_path(adj_list, source):
 	priority_queue.build_heap([[v, k] for k, v in dist.items()])
 
 	while len(priority_queue) > 0:
+		# print priority_queue.heapList		
 		curr = priority_queue.deleteMin()[1]
-		print curr
+		# print curr
 		for nbr, wt in adj_list[curr]:
-			print nbr, wt, wt+dist[curr], dist[nbr]
+			# print nbr, wt, wt+dist[curr], dist[nbr]
 			if wt + dist[curr] < dist[nbr]:
 				dist[nbr] = wt + dist[curr]
 				p[nbr] = curr

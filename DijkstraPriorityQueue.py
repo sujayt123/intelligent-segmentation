@@ -57,9 +57,11 @@ class DijkstraPriorityQueue:
 		@param 		i 		The index at which we begin the "heapify up" operation.
 		"""
 		while i / 2 > 0:
+			# print "i/2", i / 2
+			# print "i/2", "i", self.heapList[i / 2][0], self.heapList[i][0]
 			# Compare current node's heap key with its parent (available at idx i/2).
-			if self.heapList[i / 2][0] < self.heapList[i][0]:
-				print True
+			if self.heapList[i / 2][0] > self.heapList[i][0]:
+				# print True
 				# Update the element map in anticipation of the swap.
 				self.element_map[self.heapList[i][1]] = i / 2
 				self.element_map[self.heapList[i / 2][1]] = i
@@ -138,4 +140,4 @@ class DijkstraPriorityQueue:
 		if value in self.element_map:
 			idx = self.element_map[value]
 			self.heapList[idx][0] = new_priority
-			self.percolateDown(idx)	
+			self.percolateUp(idx)	

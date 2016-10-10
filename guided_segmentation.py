@@ -4,8 +4,6 @@ import math
 import numpy as np
 import dijkstra
 
-from filter_bank import filter_bank
-
 def within_bounds(x, delta_x, y, delta_y, max_x, max_y):
     """
     Returns whether the pixel given by (x + delta_x, y + delta_y) is in the bounds of the image.
@@ -19,12 +17,23 @@ def compute_costs(grayscale):
     @param      grayscale           A grayscale input image
     @return     adj_list            A weighted adjacency list representation of the pixel graph represented by the input image
     """
-    # Create a set of images that result from convolution of "grayscale" with each of the cross-correlation filters.        
-    filtered_images = {}
-    for direction, filt in filter_bank.items():
-        filtered_images[direction] = np.absolute(cv2.filter2D(grayscale, -1, filt))
-    max_filter_response = max(np.max(f_img) for f_img in filtered_images.values())
+    # Filter high frequency noise out of calculations of the energy matrix. 
+    blur = cv2.blur(grayscale,(4,4))     
+    # Convolve image with Sobel_x kernel.
+    sobelx64f = cv2.Sobel(blur,cv2.CV_64F,1,0,ksize=5)
+    abs_sobelx64f = np.absolute(sobelx64f)
+    sobelx_8u = np.uint8(abs_sobelx64f)
+    # Convolve image with Sobel_y kernel.
+    sobely64f = cv2.Sobel(blur,cv2.CV_64F,0,1,ksize=5)
+    abs_sobely64f = np.absolute(sobely64f)
+    sobely_8u = np.uint8(abs_sobely64f)  
+    # Calculate the gradient magnitude as a function of the output of the Sobel filter.  
+    gradient = (sobelx_8u ** 2 + sobely_8u ** 2) ** 0.5
     
+    laplacian = cv2.Laplacian(blur,cv2.CV_64F)
+
+    max_filter_response = np.amax(gradient)    
+
     # Initialize the adjacency list representation of the weighted pixel graph.
     adj_list = {}        
 
@@ -37,11 +46,26 @@ def compute_costs(grayscale):
                 for delta_y in range(-1, 2):
                     if (delta_x != 0 or delta_y != 0) and within_bounds(x, delta_x, y, delta_y, len(grayscale), len(grayscale[0])):
                         # Cost[neigbhor] = (max - filter_response) * distance_to_neighbor
-                        cost = (max_filter_response - filtered_images[(delta_x, delta_y)][x][y]) * math.sqrt(delta_x ** 2 + delta_y ** 2)
+                        cost = (max_filter_response - gradient[x + delta_x][y + delta_y]) / max_filter_response * math.sqrt(delta_x ** 2 + delta_y ** 2)
+                        val = 1
+                        if laplacian[x + delta_x][y + delta_y] > 0:
+                            for i in range(-1, 2):
+                                for j in range(-1, 2):
+                                    if within_bounds(x + delta_x, i, y + delta_y, j, len(grayscale), len(grayscale[0])):
+                                        if laplacian[x + delta_x + i][y + delta_y + j] < 0:
+                                            val = min((val, abs(laplacian[x + delta_x + i][y + delta_y + j]), abs(laplacian[x + delta_x][y + delta_y])))
+
+                        if laplacian[x + delta_x][y + delta_y] < 0:
+                            for i in range(-1, 2):
+                                for j in range(-1, 2):
+                                    if within_bounds(x + delta_x, i, y + delta_y, j, len(grayscale), len(grayscale[0])):
+                                        if laplacian[x + delta_x + i][y + delta_y + j] > 0:
+                                            val = min((val, abs(laplacian[x + delta_x + i][y + delta_y + j]), abs(laplacian[x + delta_x][y + delta_y])))
+                        cost += val
                         adj_list[(x, y)].append(((x + delta_x, y + delta_y), cost))
     return adj_list
 
-def main(image_filename):    
+def main(image_filename, display_bounding_boxes=False):    
     """
     Executes interactive segmentation on an input image using Dijkstra's algorithm.
 
@@ -56,13 +80,19 @@ def main(image_filename):
     main.start_point = None
     # mouse callback function
     def draw_path(event,x,y,flags,param):
-        if event == cv2.EVENT_LBUTTONDBLCLK:
+        if event == cv2.EVENT_LBUTTONDOWN:
+            cv2.circle(color_image, (x, y), 5, (0, 255, 0), -1)
             if main.start_point is None:
-                main.start_point = (x, y)
+                main.start_point = (y, x)
             else:
-                end_point = (x, y)
+                end_point = (y, x)
+                if display_bounding_boxes is True:
+                    top_left = (min(main.start_point[1], end_point[1]), min(main.start_point[0], end_point[0]))
+                    bottom_right = (max(main.start_point[1], end_point[1]), max(main.start_point[0], end_point[0]))
+                    cv2.rectangle(color_image,top_left,bottom_right,(255,0,0),3)
+
                 # Draw pixels from start_point to end_point, in color red.
-                dist, parent = dijkstra.shortest_path(adj_list, main.start_point)
+                dist, parent = dijkstra.shortest_path(adj_list, main.start_point, end_point)
                 # Construct the path itself from the parent dictionary.
                 path = []
                 temp = end_point
@@ -71,10 +101,11 @@ def main(image_filename):
                     temp = parent[temp]
                 # Paint all those pixels red.
                 for pixel in path:
-                    cv2.circle(color_image, pixel, 1, (0, 0, 255), -1)
+                    cv2.circle(color_image, (pixel[1], pixel[0]), 1, (0, 0, 255), -1)
                 # Get ready for next iteration by refreshing the start_point.
                 main.start_point = end_point
-
+        if event == cv2.EVENT_RBUTTONDOWN:
+            main.start_point = None
     cv2.namedWindow('image')
     cv2.setMouseCallback('image', draw_path)
     while(1):
@@ -86,7 +117,7 @@ def main(image_filename):
 
 if __name__ == "__main__":
     args = sys.argv
-    if len(args) != 2:
+    if len(args) != 2 and len(args) != 3:
         print >>sys.stderr, "Please specify an appropriate set of command-line arguments. Run with -h flag for more details."
         sys.exit(1)
     if args[1] == "-h":
@@ -94,11 +125,17 @@ if __name__ == "__main__":
         print "Author: Sujay Tadwalkar"
         print
         print "Command Syntax:"
-        print "python guided_segmentation.py [options]"
+        print "python guided_segmentation.py [options] [flags]"
         print
         print "Options:"
         print "-h".ljust(40), "shows this help message".ljust(50)
         print "<input_filepath>".ljust(40), "input_filepath  is the path (absolute or relative) to the input image".ljust(50)
+        print
+        print "Flags:"
+        print "-b",ljust(40), "displays bounding boxes for all paths to help the user understand the path connections"
         print 
         sys.exit(0)            
-    main(args[1])
+    if len(args) == 3 and args[2] == "-b":
+        main(args[1], True)
+    else:
+        main(args[1])

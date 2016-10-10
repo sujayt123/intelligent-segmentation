@@ -1,6 +1,13 @@
 from DijkstraPriorityQueue import DijkstraPriorityQueue as dpq
 
-def shortest_path(adj_list, source):
+def valid_within_bounding_box(start, end, pt):
+	if end is None:
+		return True
+	small_x, large_x = min(start[0], end[0]), max(start[0], end[0])
+	small_y, large_y = min(start[1], end[1]), max(start[1], end[1])
+	return pt[0] <= large_x and pt[0] >= small_x and pt[1] <= large_y and pt[1] >= small_y 
+
+def shortest_path(adj_list, source, end=None):
 	"""
 	Runs Dijkstra's algorithm on the graph represented by adj_list. 
 
@@ -12,8 +19,9 @@ def shortest_path(adj_list, source):
 	dist = {}
 	p = {}
 	for node in adj_list:
-		dist[node] = float("inf")
-		p[node] = None
+		if valid_within_bounding_box(source, end, node):
+			dist[node] = float("inf")
+			p[node] = None
 	dist[source] = 0
 
 	priority_queue = dpq()
@@ -22,10 +30,12 @@ def shortest_path(adj_list, source):
 	while len(priority_queue) > 0:
 		# print priority_queue.heapList		
 		curr = priority_queue.deleteMin()[1]
+		if curr == end:
+			return dist, p
 		# print curr
 		for nbr, wt in adj_list[curr]:
 			# print nbr, wt, wt+dist[curr], dist[nbr]
-			if wt + dist[curr] < dist[nbr]:
+			if valid_within_bounding_box(source, end, nbr) and wt + dist[curr] < dist[nbr]:
 				dist[nbr] = wt + dist[curr]
 				p[nbr] = curr
 				priority_queue.update_priority(nbr, dist[nbr])
